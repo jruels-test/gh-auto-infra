@@ -1,6 +1,10 @@
-name: 'Terraform AWS Destroy'
+name: 'Terraform AWS Pipeline'
 
 on:
+  push:
+    branches: 
+      - 'feature/**' 
+      - 'control-tower' 
   workflow_dispatch:
 
 permissions:
@@ -9,11 +13,11 @@ permissions:
 
 env:
   TERRAFORM_DIR: './main'
-  AWS_REGION: 'us-east-1'
+  AWS_REGION: 'us-west-1'
 
 jobs:
-  terraform-destroy-plan:
-    name: 'Terraform Destroy Plan'
+  terraform-plan:
+    name: 'Terraform Plan'
     runs-on: ubuntu-latest
     outputs:
       tfplanExitCode: ${{ steps.tf-plan.outputs.exitcode }}
@@ -26,21 +30,23 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: '${{ env.AWS_REGION }}'
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: ${{ env.AWS_REGION }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
       with:
-        terraform_version: "1.5.0"
+        terraform_version: "1.10.3"
 
     - name: Terraform Init
-      run: terraform init
+      run: |
+        terraform init
       working-directory: ${{ env.TERRAFORM_DIR }}
 
-    - name: Terraform Plan Destroy
+    - name: Terraform Plan
       id: tf-plan
       run: |
-        terraform plan -destroy -detailed-exitcode -no-color -out=tfplan || exit_code=$?
+        terraform plan -detailed-exitcode -no-color -out=tfplan || exit_code=$?
         echo "exitcode=${exit_code}" >> $GITHUB_OUTPUT
         if [ $exit_code -eq 1 ]; then
           echo "Terraform Plan Failed!"
@@ -56,16 +62,16 @@ jobs:
         retention-days: 1
 
   approval:
-    name: 'Approve Terraform Destroy'
-    needs: terraform-destroy-plan
+    name: 'Approve Terraform Plan'
+    needs: terraform-plan
     runs-on: ubuntu-latest
     environment: gh-actions-lab
     steps:
-      - run: echo "Waiting for approval to destroy..."
+      - run: echo "Waiting for approval..."
 
-  terraform-destroy:
-    name: 'Terraform Destroy'
-    needs: [terraform-destroy-plan, approval]
+  terraform-apply:
+    name: 'Terraform Apply'
+    needs: [terraform-plan, approval]
     runs-on: ubuntu-latest
     
     steps:
@@ -76,12 +82,13 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: '${{ env.AWS_REGION }}'
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
       with:
-        terraform_version: "1.5.0"
+        terraform_version: "1.10.3"
 
     - name: Terraform Init
       run: terraform init
@@ -93,6 +100,6 @@ jobs:
         name: tfplan
         path: ${{ env.TERRAFORM_DIR }}
 
-    - name: Terraform Destroy
+    - name: Terraform Apply
       run: terraform apply -auto-approve tfplan
-      working-directory: ${{ env.TERRAFORM_DIR }} 
+      working-directory: ${{ env.TERRAFORM_DIR }}

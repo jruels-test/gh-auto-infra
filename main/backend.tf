@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket = "my-terraform-state-bucket-antoine-victor"
+    bucket = "my-terraform-state-bucket-jrs"
     key    = "terraform.tfstate"
     region = "us-west-1"
   }
@@ -8,7 +8,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 5.82.2"
     }
   }
 }
